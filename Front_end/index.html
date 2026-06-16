@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airport Gate Compliance Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon"></div>
+                <h1>Gate Compliance Analyzer</h1>
+            </div>
+            <div class="header-right">
+                <span class="sql-badge" id="sqlBadge">
+                    <span class="pulse"></span> SQL Connected
+                </span>
+                <a href="/api/sample" target="_blank" class="btn btn-outline">View SQL Schema & Dump</a>
+            </div>
+        </header>
+
+        <div class="alert-banner hidden" id="alertBanner">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-content">
+                <strong>Attention Required:</strong> The following gates have fallen below the compliance threshold: <span id="flaggedGatesList"></span>
+            </div>
+        </div>
+
+        <section class="controls glass-panel">
+            <div class="slider-container">
+                <label for="thresholdSlider" class="slider-label">Compliance Threshold: <span id="thresholdValue" class="neon-text">70%</span></label>
+                <input type="range" id="thresholdSlider" class="styled-slider" min="0" max="100" value="70">
+            </div>
+            <div class="actions">
+                <div class="toggle-wrapper">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="filterToggle">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="toggle-label">Show Flagged Only</span>
+                </div>
+                <button id="exportCsvBtn" class="btn btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    Export CSV
+                </button>
+            </div>
+        </section>
+
+        <section class="db-management glass-panel">
+            <div class="db-header">
+                <h2>Database Management</h2>
+                <span class="db-subtext">Upload airport compliance CSV data or clear all records from the database</span>
+            </div>
+            <div class="db-grid">
+                <div class="upload-container">
+                    <div class="drop-zone" id="dropZone">
+                        <span class="drop-icon">📤</span>
+                        <p class="drop-text">Drag & drop compliance CSV here or <span class="browse-link">browse</span></p>
+                        <input type="file" id="fileInput" accept=".csv" class="file-input">
+                    </div>
+                    <div class="file-info hidden" id="fileInfo">
+                        <span class="file-icon">📄</span>
+                        <span class="file-name" id="fileName">No file selected</span>
+                        <button class="btn-clear-file" id="clearFileBtn" title="Remove file">&times;</button>
+                    </div>
+                </div>
+                
+                <div class="db-options">
+                    <div class="mode-selector">
+                        <label class="radio-container">
+                            <input type="radio" name="uploadMode" value="replace" checked>
+                            <span class="radio-checkmark"></span>
+                            <div class="radio-label">
+                                <span class="radio-title">Replace Data</span>
+                                <span class="radio-desc">Overwrite existing database with the uploaded records</span>
+                            </div>
+                        </label>
+                        <label class="radio-container">
+                            <input type="radio" name="uploadMode" value="append">
+                            <span class="radio-checkmark"></span>
+                            <div class="radio-label">
+                                <span class="radio-title">Append Data</span>
+                                <span class="radio-desc">Add new records to the current database</span>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <div class="db-actions">
+                        <button id="uploadBtn" class="btn btn-primary" disabled>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                            Upload CSV
+                        </button>
+                        <button id="clearBtn" class="btn btn-outline btn-danger">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            Clear Database
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="stats">
+            <div class="stat-card glass-panel">
+                <h3>Total Gates</h3>
+                <p id="statTotalGates" class="stat-value">0</p>
+            </div>
+            <div class="stat-card glass-panel">
+                <h3>Total Flights</h3>
+                <p id="statTotalFlights" class="stat-value">0</p>
+            </div>
+            <div class="stat-card glass-panel">
+                <h3>Compliance Rate</h3>
+                <p id="statComplianceRate" class="stat-value">0%</p>
+            </div>
+            <div class="stat-card glass-panel">
+                <h3>Compliant Gates</h3>
+                <p id="statCompliantGates" class="stat-value text-green">0</p>
+            </div>
+            <div class="stat-card glass-panel">
+                <h3>Flagged Gates</h3>
+                <p id="statFlaggedGates" class="stat-value text-red">0</p>
+            </div>
+        </section>
+
+        <section class="charts">
+            <div class="chart-container glass-panel bar-container">
+                <h2>Equipment Usage by Gate</h2>
+                <div class="canvas-wrapper">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container glass-panel doughnut-container">
+                <h2>Compliance Overview</h2>
+                <div class="canvas-wrapper">
+                    <canvas id="doughnutChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section class="data-table glass-panel">
+            <div class="table-header">
+                <h2>Detailed Gate Report</h2>
+            </div>
+            <div class="table-responsive">
+                <table id="gatesTable">
+                    <thead>
+                        <tr>
+                            <th>Gate</th>
+                            <th>Total Flights</th>
+                            <th>FGP Usage</th>
+                            <th>PCA Usage</th>
+                            <th>PBB Usage</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Rows injected via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirmModal" class="modal-overlay hidden">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h3>⚠️ Confirm Database Clear</h3>
+                <button class="btn-close-modal" id="closeModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to clear all records from the database? This action is permanent and cannot be undone.</p>
+            </div>
+            <div class="modal-actions">
+                <button id="cancelModalBtn" class="btn btn-outline">Cancel</button>
+                <button id="confirmModalBtn" class="btn btn-primary btn-danger-action">Clear All Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
