@@ -138,6 +138,9 @@ async def upload_file(file: UploadFile = File(...), mode: str = Form("replace"))
                 df = pd.read_excel(io.BytesIO(contents))
             elif filename.endswith('.parquet'):
                 df = pd.read_parquet(io.BytesIO(contents))
+            elif filename.endswith(('.txt', '.tsv')):
+                # Try to sniff separator for txt/tsv
+                df = pd.read_csv(io.BytesIO(contents), sep=None, engine='python')
             else:
                 # Fallback: try parsing as CSV
                 df = pd.read_csv(io.BytesIO(contents))
