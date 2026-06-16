@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Upload Action
-    async function uploadCsvFile() {
+    async function uploadDataFile() {
         if (!selectedFile) return;
         
         const mode = document.querySelector('input[name="uploadMode"]:checked').value;
@@ -371,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    uploadBtn.addEventListener('click', uploadCsvFile);
+    uploadBtn.addEventListener('click', uploadDataFile);
 
     // Modal Clear DB Actions
     function showClearModal() {
