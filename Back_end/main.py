@@ -124,10 +124,25 @@ def sample():
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/upload")
-async def upload_csv(file: UploadFile = File(...), mode: str = Form("replace")):
+async def upload_file(file: UploadFile = File(...), mode: str = Form("replace")):
     try:
         contents = await file.read()
-        df = pd.read_csv(io.BytesIO(contents))
+        filename = file.filename.lower()
+        
+        try:
+            if filename.endswith('.csv'):
+                df = pd.read_csv(io.BytesIO(contents))
+            elif filename.endswith('.json'):
+                df = pd.read_json(io.BytesIO(contents))
+            elif filename.endswith(('.xls', '.xlsx')):
+                df = pd.read_excel(io.BytesIO(contents))
+            elif filename.endswith('.parquet'):
+                df = pd.read_parquet(io.BytesIO(contents))
+            else:
+                # Fallback: try parsing as CSV
+                df = pd.read_csv(io.BytesIO(contents))
+        except Exception as e:
+            return JSONResponse(status_code=400, content={"error": f"Could not parse file: {str(e)}"})
         
         expected_cols = ["METER_LOCATION", "FLIGHT_NUMBER", "METER_TYPE"]
         for col in expected_cols:
@@ -146,7 +161,7 @@ async def upload_csv(file: UploadFile = File(...), mode: str = Form("replace")):
             df.to_sql("flight_meter_usage", conn, if_exists="append", index=False)
         conn.close()
         
-        return {"message": f"Successfully loaded CSV with {len(df)} records in '{mode}' mode."}
+        return {"message": f"Successfully loaded file with {len(df)} records in '{mode}' mode."}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
