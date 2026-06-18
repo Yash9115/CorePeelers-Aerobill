@@ -1,13 +1,22 @@
 import os
-import sqlite3
 import pandas as pd
 import random
+import pymysql
+from sqlalchemy import create_engine
+from dotenv import load_dotenv
 from pathlib import Path
+import urllib.parse
+
+load_dotenv()
 
 DATA_DIR = Path("data")
-DB_PATH = DATA_DIR / "airport_gate_usage.db"
 EXCEL_PATH = DATA_DIR / "data.xlsx"
 CSV_PATH = Path("Back_end") / "BMS.csv"
+
+DB_HOST = os.getenv("db_host", "localhost")
+DB_USER = os.getenv("db_user", "root")
+DB_PASSWORD = os.getenv("db_password", "")
+DB_NAME = os.getenv("db_name", "airport_db")
 
 def generate_mock_data():
     print("Generating mock data...")
@@ -38,14 +47,6 @@ def init_db():
     if not DATA_DIR.exists():
         DATA_DIR.mkdir(parents=True)
         
-    # Clear existing database file if it exists
-    if DB_PATH.exists():
-        print(f"Removing existing database at {DB_PATH}...")
-        try:
-            os.remove(DB_PATH)
-        except Exception as e:
-            print(f"Could not remove DB file directly: {e}. Will overwrite table.")
-
     if CSV_PATH.exists():
         print(f"Reading data from uploaded CSV: {CSV_PATH}...")
         df = pd.read_csv(CSV_PATH)
@@ -67,11 +68,26 @@ def init_db():
     df["FLIGHT_NUMBER"] = df["FLIGHT_NUMBER"].astype(str).str.strip()
     df["METER_TYPE"] = df["METER_TYPE"].astype(str).str.strip()
     
-    print(f"Writing to SQLite database at {DB_PATH}...")
-    conn = sqlite3.connect(DB_PATH)
-    df.to_sql("flight_meter_usage", conn, if_exists="replace", index=False)
-    conn.close()
-    print("Database initialization complete.")
+    print("Connecting to MySQL server to ensure database exists...")
+    try:
+        # Connect without DB name to create it if necessary
+        conn = pymysql.connect(
+            host=DB_HOST,
+            user=DB_USER,
+            password=DB_PASSWORD
+        )
+        cursor = conn.cursor()
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
+        conn.close()
+        print(f"Database '{DB_NAME}' is ready.")
+        
+        print(f"Writing to MySQL database '{DB_NAME}'...")
+        encoded_password = urllib.parse.quote_plus(DB_PASSWORD)
+        engine = create_engine(f"mysql+pymysql://{DB_USER}:{encoded_password}@{DB_HOST}/{DB_NAME}")
+        df.to_sql("flight_meter_usage", engine, if_exists="replace", index=False)
+        print("Database initialization complete.")
+    except Exception as e:
+        print(f"Failed to initialize MySQL database: {e}")
 
 if __name__ == "__main__":
     init_db()

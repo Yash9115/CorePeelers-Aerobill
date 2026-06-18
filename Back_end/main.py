@@ -2,11 +2,20 @@ from fastapi import FastAPI, Query, UploadFile, File, Form
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-import sqlite3
+import pymysql
+from sqlalchemy import create_engine
 import pandas as pd
 from pathlib import Path
 import io
-from Back_end.database import init_db, DB_PATH
+import urllib.parse
+from Back_end.database import init_db, DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
+
+def get_engine():
+    encoded_password = urllib.parse.quote_plus(DB_PASSWORD)
+    return create_engine(f"mysql+pymysql://{DB_USER}:{encoded_password}@{DB_HOST}/{DB_NAME}")
+
+def get_connection():
+    return pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME)
 
 app = FastAPI(title="Airport Gate Compliance Analyzer")
 
@@ -25,9 +34,8 @@ def startup_event():
 @app.get("/api/analyze")
 def analyze(threshold: float = Query(70.0, description="Compliance threshold percentage")):
     try:
-        conn = sqlite3.connect(DB_PATH)
-        df = pd.read_sql_query("SELECT * FROM flight_meter_usage", conn)
-        conn.close()
+        engine = get_engine()
+        df = pd.read_sql_query("SELECT * FROM flight_meter_usage", engine)
         
         if df.empty:
             return {
@@ -103,10 +111,10 @@ def analyze(threshold: float = Query(70.0, description="Compliance threshold per
 @app.get("/api/sample")
 def sample():
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='flight_meter_usage'")
-        schema = cursor.fetchone()[0]
+        cursor.execute("SHOW CREATE TABLE flight_meter_usage")
+        schema = cursor.fetchone()[1]
         
         cursor.execute("SELECT * FROM flight_meter_usage LIMIT 50")
         rows = cursor.fetchall()
@@ -157,12 +165,11 @@ async def upload_file(file: UploadFile = File(...), mode: str = Form("replace"))
         df["FLIGHT_NUMBER"] = df["FLIGHT_NUMBER"].astype(str).str.strip()
         df["METER_TYPE"] = df["METER_TYPE"].astype(str).str.strip()
         
-        conn = sqlite3.connect(DB_PATH)
+        engine = get_engine()
         if mode == "replace":
-            df.to_sql("flight_meter_usage", conn, if_exists="replace", index=False)
+            df.to_sql("flight_meter_usage", engine, if_exists="replace", index=False)
         else:
-            df.to_sql("flight_meter_usage", conn, if_exists="append", index=False)
-        conn.close()
+            df.to_sql("flight_meter_usage", engine, if_exists="append", index=False)
         
         return {"message": f"Successfully loaded file with {len(df)} records in '{mode}' mode."}
     except Exception as e:
@@ -171,13 +178,13 @@ async def upload_file(file: UploadFile = File(...), mode: str = Form("replace"))
 @app.post("/api/clear")
 def clear_db():
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='flight_meter_usage'")
+        cursor.execute("SHOW TABLES LIKE 'flight_meter_usage'")
         table_exists = cursor.fetchone()
         
         if table_exists:
-            cursor.execute("DELETE FROM flight_meter_usage")
+            cursor.execute("TRUNCATE TABLE flight_meter_usage")
             conn.commit()
         conn.close()
         return {"message": "Database cleared successfully."}
